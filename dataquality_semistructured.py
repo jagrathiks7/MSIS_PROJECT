@@ -5,31 +5,39 @@ import re
 import xml.etree.ElementTree as ET
 from pandas import json_normalize
 
+try:
+    from pymongo import MongoClient
+except ImportError:
+    print("🔌 pymongo not found. Run 'pip install pymongo' to use NoSQL support.")
+    exit()
+
 # -------------------------------------------------------------------------
-# 1️⃣ Choose input type: JSON or XML
+# 1️⃣ Choose input type: JSON, XML, or NoSQL (MongoDB)
 # -------------------------------------------------------------------------
 print("Select input format:")
 print("1. JSON or NDJSON")
 print("2. XML")
-format_choice = input("Enter 1 or 2: ").strip()
+print("3. NoSQL (MongoDB)")
+format_choice = input("Enter 1, 2, or 3: ").strip()
 
-file_path = input("Enter full path to your file: ").strip().strip('"')
-
-if not os.path.isfile(file_path):
-    print("❌ File not found. Exiting.")
-    exit()
+df = None
 
 # -------------------------------------------------------------------------
-# 2️⃣ Load JSON / NDJSON / XML and convert to DataFrame
+# 2️⃣ Load JSON / NDJSON / XML / NoSQL and convert to DataFrame
 # -------------------------------------------------------------------------
 if format_choice == '1':  # JSON or NDJSON
+    file_path = input("Enter full path to your file: ").strip().strip('"')
+
+    if not os.path.isfile(file_path):
+        print("❌ File not found. Exiting.")
+        exit()
+
     try:
         # Try NDJSON
         df = pd.read_json(file_path, lines=True)
         print("✅ NDJSON (line-delimited JSON) loaded successfully.")
     except ValueError:
         try:
-            # Fallback to regular JSON
             with open(file_path, 'r', encoding='utf-8') as f:
                 json_data = json.load(f)
             df = pd.json_normalize(json_data)
@@ -39,6 +47,12 @@ if format_choice == '1':  # JSON or NDJSON
             exit()
 
 elif format_choice == '2':  # XML
+    file_path = input("Enter full path to your file: ").strip().strip('"')
+
+    if not os.path.isfile(file_path):
+        print("❌ File not found. Exiting.")
+        exit()
+
     try:
         tree = ET.parse(file_path)
         root = tree.getroot()
@@ -60,6 +74,27 @@ elif format_choice == '2':  # XML
         print(f"❌ Failed to parse XML: {e}")
         exit()
 
+elif format_choice == '3':  # MongoDB
+    try:
+        mongo_uri = input("Enter MongoDB URI (e.g., mongodb://localhost:27017): ").strip()
+        db_name = input("Enter Database Name: ").strip()
+        collection_name = input("Enter Collection Name: ").strip()
+
+        client = MongoClient(mongo_uri)
+        db = client[db_name]
+        collection = db[collection_name]
+
+        data = list(collection.find())
+        if not data:
+            print("❌ No documents found in the collection.")
+            exit()
+
+        df = pd.json_normalize(data)
+        print("✅ MongoDB data loaded successfully.")
+    except Exception as e:
+        print(f"❌ Failed to connect/load MongoDB: {e}")
+        exit()
+
 else:
     print("❌ Invalid format choice.")
     exit()
@@ -67,7 +102,6 @@ else:
 # -------------------------------------------------------------------------
 # 3️⃣ Data Quality Checks
 # -------------------------------------------------------------------------
-
 # Completeness
 print("\n--- Completeness Report ---")
 column_completeness = df.notnull().mean() * 100
